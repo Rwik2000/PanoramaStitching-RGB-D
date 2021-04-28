@@ -52,10 +52,11 @@ class discretize():
             except:
                 pass
             a = max(a, np.amax(imgs[i]))
-        
+        step_size = a//self.bins        
+        discrete_steps = [i*step_size for i in range(self.bins)]
+        print(discrete_steps)
         disc_imgs = []
         for img in imgs:
-            step_size = a//self.bins
             disc_img = img//step_size
             disc_img = disc_img*step_size
             disc_img = cv2.cvtColor(disc_img, cv2.COLOR_GRAY2BGR)

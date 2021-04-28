@@ -16,13 +16,13 @@ class panaroma_stitching():
     def __init__(self):
         # Class parameters
         self.ismid = 1
-        self.LoweRatio = 0.75
+        self.LoweRatio = 0.8
         self.warp_images = []
         self.warp_mask = []
         self.inbuilt_CV = 0
         self.p = 0
         self.dataset = "data"
-        self.blendON = 1 #to use laplacian blend.... keep it ON!
+        self.blendON = 0 #to use laplacian blend.... keep it ON!
     # Finding the common features between the two images, mapping the features, 
     # getting the homography and warping the required images
     def map2imgs(self, images):
@@ -34,13 +34,16 @@ class panaroma_stitching():
 
         # match features between the two images
         H, invH= self.mapKeyPts(kpsA, kpsB,featuresA, featuresB)
+        # print(H,invH)
         warpClass = Warp()
         if self.ismid:
             # Setting the offset only for the main image... homography takes care of the rest of the images
             warpClass.xOffset = 150
             warpClass.yOffset = 200
         # Warping the image
-        warpedImg = warpClass.InvWarpPerspective(imageA, invH,H,(640, 800))
+        warpedImg = warpClass.InvWarpPerspective(imageA, invH,H,(640, 1000))
+        cv2.imshow('x',np.uint8(warpedImg))
+        cv2.waitKey(0)
         return np.uint8(warpedImg)
 
 
@@ -67,9 +70,11 @@ class panaroma_stitching():
         for m in _Matches:
             if len(m) == 2 and m[0].distance < m[1].distance * self.LoweRatio:
                 matches.append((m[0].trainIdx, m[0].queryIdx))
+        
         if len(matches) > 4:
             ptsA = np.float32([kpsA[i] for (_, i) in matches])      
             ptsB = np.float32([kpsB[i] for (i, _) in matches])
+            # print(ptsA, ptsB)
             # Calling the homography class
             reprojThresh =4
             # Obtaining the homography matrix
@@ -78,8 +83,11 @@ class panaroma_stitching():
                 H= homographyFunc.getHomography(ptsA, ptsB)
             else:
                 H,_ = cv2.findHomography(ptsA, ptsB, cv2.RANSAC, reprojThresh)
+            
+            # print(H)
             # Obtaining the inverse homography matrix
             invH = np.linalg.inv(H)
+            # print(invH)
             return H, invH
         return None
     
@@ -135,17 +143,15 @@ class panaroma_stitching():
         return final
         
 
-disc = discretize(5)
+disc = discretize(10)
 dname = '2812'
-img_p0 = cv2.imread('../RGBD dataset/00000'+dname+'/depth_0.jpg')
-img_p1 = cv2.imread('../RGBD dataset/00000'+dname+'/depth_1.jpg')
-img_p2 = cv2.imread('../RGBD dataset/00000'+dname+'/depth_2.jpg')
-img_p3 = cv2.imread('../RGBD dataset/00000'+dname+'/depth_3.jpg')
+type = 'depth'
+img_p0 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_0.jpg')
+img_p1 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_1.jpg')
+img_p2 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_2.jpg')
+# img_p3 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_3.jpg')
 
-
-
-
-images=[img_p0,img_p1, img_p2, img_p3]
+images=[img_p0,img_p1,img_p2]
 
 images = disc.exec_multi(images)
 
@@ -156,6 +162,4 @@ inpImgs = images[:]
 panoStitch = panaroma_stitching()
 result = panoStitch.MultiStitch(inpImgs)
 
-
- 
 
