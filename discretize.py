@@ -32,7 +32,7 @@ class discretize():
 
         return disc_img
     
-    def exec_multi(self,imgs):
+    def exec_multi(self,dimgs, cimgs):
         '''
         Returns a discretized images given one input images.
 
@@ -45,23 +45,30 @@ class discretize():
         '''
         
         a = 0
-        for i in range(len(imgs)):
+        for i in range(len(dimgs)):
             try:
-                imgs[i] = cv2.cvtColor(imgs[i], cv2.COLOR_BGR2GRAY)
+                dimgs[i] = cv2.cvtColor(dimgs[i], cv2.COLOR_BGR2GRAY)
 
             except:
                 pass
-            a = max(a, np.amax(imgs[i]))
+            a = max(a, np.amax(dimgs[i]))
         step_size = a//self.bins        
         discrete_steps = [i*step_size for i in range(self.bins)]
-        print(discrete_steps)
+        # print(discrete_steps)
         disc_imgs = []
-        for img in imgs:
-            disc_img = img//step_size
+        for i in range(len(cimgs)):
+            depthimgs = []
+                
+            disc_img = dimgs[i]//step_size
             disc_img = disc_img*step_size
             disc_img = cv2.cvtColor(disc_img, cv2.COLOR_GRAY2BGR)
-            disc_imgs.append(disc_img)
-            cv2.imshow('x',disc_img)
-            cv2.waitKey(0)
+            for j in range(0,len(discrete_steps)):
+                p = discrete_steps[j]
+                tempMask = cv2.inRange(disc_img, np.array([p]*3), np.array([p]*3)) 
+                masked = cv2.bitwise_and(cimgs[i], cimgs[i], mask=tempMask)
+                depthimgs.append(masked)
+                # cv2.imshow('k', masked)
+                # cv2.waitKey(0)
+            disc_imgs.append(depthimgs)
 
         return disc_imgs

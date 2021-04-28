@@ -72,4 +72,5 @@ class homographyRansac():
             if count>Bestcount:
                 Bestcount = count
                 final_H = self._single_homography(_inliers)
-        return final_H
+
+        return final_H, Bestcount

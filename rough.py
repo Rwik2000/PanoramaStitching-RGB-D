@@ -25,33 +25,27 @@ class panaroma_stitching():
         self.blendON = 0 #to use laplacian blend.... keep it ON!
     # Finding the common features between the two images, mapping the features, 
     # getting the homography and warping the required images
-    def map2imgs(self, images):
+    def map2depths(self, images):
 
         (imageB, imageA) = images
-        # Finding features and their corresponding keypoints in the given images
         (kpsA, featuresA) = self.findSIFTfeatures(imageA)
         (kpsB, featuresB) = self.findSIFTfeatures(imageB)
 
-        # match features between the two images
-        H, invH= self.mapKeyPts(kpsA, kpsB,featuresA, featuresB)
-        # print(H,invH)
-        warpClass = Warp()
-        if self.ismid:
-            # Setting the offset only for the main image... homography takes care of the rest of the images
-            warpClass.xOffset = 150
-            warpClass.yOffset = 200
-        # Warping the image
-        warpedImg = warpClass.InvWarpPerspective(imageA, invH,H,(640, 1000))
-        cv2.imshow('x',np.uint8(warpedImg))
-        cv2.waitKey(0)
-        return np.uint8(warpedImg)
+        A = self.mapKeyPts(kpsA, kpsB,featuresA, featuresB)
+        if A is not None:
+            return A
+        else:
+            return 0,0,-100
 
 
     def extractMask(self,image):
 
         _image = image.copy()
+        _image = _image.astype('uint8')
         _image = cv2.cvtColor(_image, cv2.COLOR_BGR2GRAY)
         _, _image = cv2.threshold(_image, 1, 255, cv2.THRESH_BINARY)
+        cv2.imshow('mask',_image)
+        cv2.waitKey(0)
         return _image
 
     def findSIFTfeatures(self, image):
@@ -80,86 +74,78 @@ class panaroma_stitching():
             # Obtaining the homography matrix
             if not self.inbuilt_CV:
                 homographyFunc = homographyRansac(reprojThresh,1000)
-                H= homographyFunc.getHomography(ptsA, ptsB)
+                H, hScore= homographyFunc.getHomography(ptsA, ptsB)
+                # print(H)
+                # print('ik')
+                invH = np.linalg.inv(H)
+                return H,invH, hScore
             else:
                 H,_ = cv2.findHomography(ptsA, ptsB, cv2.RANSAC, reprojThresh)
-            
-            # print(H)
-            # Obtaining the inverse homography matrix
-            invH = np.linalg.inv(H)
-            # print(invH)
-            return H, invH
-        return None
-    
-    def MultiStitch(self, images):
-        
-        if len(images)%2!=0:
-            mid_image_loc = len(images)//2 
-        else:
-            mid_image_loc = len(images)//2 - 1
-        
-        left_images = images[:mid_image_loc]
-        left_images = left_images[::-1]
+                invH = np.linalg.inv(H)
+                return H,invH, 0
+        return None    
 
-        right_images = images[mid_image_loc+1:]
-        mid_image = self.map2imgs((images[mid_image_loc], images[mid_image_loc]))
-        self.ismid = 0
-        temp_mid_image = mid_image
-        self.p = 0
-        for i in range(len(left_images)):
-            print("=============> Transformed Image : ", self.p)
-            self.p+=1
-            temp_warp = self.map2imgs((temp_mid_image, left_images[i]))
-            _mask = self.extractMask(temp_warp)
-            self.warp_mask.append(_mask)
-            self.warp_images.append(temp_warp)
-            temp_mid_image = temp_warp
-        self.warp_images = self.warp_images[::-1]
-        self.warp_mask = self.warp_mask[::-1]
-        print("=============> Transformed Image : ", self.p)
-        self.p+=1
-        self.warp_images.append(mid_image)
-        _mask = self.extractMask(mid_image)
-        self.warp_mask.append(_mask)
-        temp_mid_image = mid_image
-        for i in range(len(right_images)):
-            print("=============> Transformed Image : ", self.p)
-            self.p+=1
-            temp_warp = self.map2imgs((temp_mid_image, right_images[i]))
-            _mask = self.extractMask(temp_warp)
-            self.warp_mask.append(_mask)
-            self.warp_images.append(temp_warp)
-            temp_mid_image = temp_warp
-        print("Transformations Applied....")
-        print("Blending and Stitching....")
+    def stitch2imgs(self,cimages,disc_imgs, dlvl):
+        w= []
+        final_H = None
+        final_invH = None
 
+        maxScore = 0
+        for i in range(dlvl):
+            H, invH, hScore = self.map2depths([disc_imgs[0][i], disc_imgs[1][i]])
+            if hScore>=maxScore:
+                maxScore = hScore
+                final_H = H
+                final_invH = invH
+        warpClass = Warp()
+        # if self.ismid:
+            # Setting the offset only for the main image... homography takes care of the rest of the images
+        mimg = np.zeros((640,1000,3))
+        warpClass.xOffset = 150
+        warpClass.yOffset = 200
+        mimg[150:150+cimages[0].shape[0],200:200+cimages[0].shape[1]] = cimages[0]
+        # Warping the image
+        warpedImg = warpClass.InvWarpPerspective(cimages[1], final_invH,final_H,(640, 1000))
+        mask = [self.extractMask(mimg),self.extractMask(warpedImg)]
         stitchDscp = stitcher()
-        if self.blendON:
-            final = stitchDscp.LaplacianBlend(self.warp_images,self.warp_mask, n=5)
-        else:
-            final = stitchDscp.stitchOnly(self.warp_images,self.warp_mask)
-        cv2.imshow("stitch",final)        
+        final = stitchDscp.stitchOnly([mimg, warpedImg], mask)
+        cv2.imshow('j', np.uint8(final))
         cv2.waitKey(0)
-        return final
         
 
-disc = discretize(10)
+disc = discretize(5)
 dname = '2812'
 type = 'depth'
-img_p0 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_0.jpg')
-img_p1 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_1.jpg')
-img_p2 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_2.jpg')
+dimg_p0 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_0.jpg')
+dimg_p1 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_1.jpg')
+# dimg_p2 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_2.jpg')
+type = 'im'
+cimg_p0 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_0.jpg')
+cimg_p1 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_1.jpg')
+# cimg_p2 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_2.jpg')
 # img_p3 = cv2.imread('../RGBD dataset/00000'+dname+'/'+type+'_3.jpg')
 
-images=[img_p0,img_p1,img_p2]
+dimages = [dimg_p0,dimg_p1]
+cimages = [cimg_p0,cimg_p1]
+disc_imgs = disc.exec_multi(dimages,cimages)
 
-images = disc.exec_multi(images)
+pano = panaroma_stitching()
+final = pano.stitch2imgs(cimages, disc_imgs,disc.bins)
+# w = []
+# for i in range(disc.bins):
+#     # print('yo')
+#     try:
+#         w.append(pano.map2imgs([disc_imgs[0][i], disc_imgs[1][i]]))
+#     except:
+#         pass
 
-for i in range(len(images)):
-    images[i] = imutils.resize(images[i], width=300)
+# for i in range(len(w)):
+#     cv2.imshow(str(i),w[i] )
+# cv2.waitKey(0)
+# # for i in range(len(disc_imgs)):
+#     for j in range(len(disc_imgs[i])):
+#         cv2.imshow("k", disc_imgs[i][j])
+#         cv2.waitKey(0)
 
-inpImgs = images[:]
-panoStitch = panaroma_stitching()
-result = panoStitch.MultiStitch(inpImgs)
 
 
