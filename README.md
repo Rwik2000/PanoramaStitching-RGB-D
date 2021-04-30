@@ -8,23 +8,26 @@ View the project on https://github.com/Rwik2000/Panorama-Stitching-v2.0 for bett
 This is a Code to stitch multiple images to create panoramas.This is the tree for the entire repo:
 
 ```
-Panorama Stitching
+Panorama Stitching RGB-D
         |
         |___Dataset
         |       |--I1
         |       |--I2 ....
         |
-        |___Outputs
+        |___results
+        |       |-- hard-code
+        |       |-- inbuilt
         |
         |___blend_and_stitch.py
-        |___Homography.py
-        |___Main.py
+        |___homography.py
+        |___discretize.py
+        |___rgb_panorama.py
+        |___rgbd_panorama.py
         |___Warp.py
 
 ```
 
-In this code, I have used concepts of inverse homography, 
-warping, RANSAC and Laplacian Blending to solve the problem statement.
+THis is a continuation of the repo: https://github.com/Rwik2000/Panorama-Stitching-v2.0 . The new additions to the code being using depth images to warp the images. In this repo, only 2 images are warped and stitched unlike the previous repo.
 
 ### To use the code, 
 
@@ -32,46 +35,30 @@ warping, RANSAC and Laplacian Blending to solve the problem statement.
 * opencv
 * numpy
 * imutils
+* tqdm
 
 ##### Procedure:
-In the [main.py](https://github.com/Rwik2000/Panorama-Stitching-v2.0/blob/main/main.py), 
+Use [rgbd_panorama.py](https://github.com/Rwik2000/Panorama-Stitching-v2.0/blob/main/main.py) to get results using the depth image. Usage:
+
 1. Add your dataset in the Dataset Directory.
-2. In [line 157](https://github.com/Rwik2000/Panorama-Stitching-v2.0/blob/main/main.py#L157), add your datasets in the Datasets array.
+2. In [line 184](https://github.com/Rwik2000/Panorama-Stitching-v2.0/blob/main/main.py#L157), add your dataset name and the image you want to start with i.e. an input 2 will result in using the images 2 and 3 from the dataset. **Note** : please the proper naming scheme of the dataset and the corresponding depth and coloured images. The dataset used has a maximum of 3 images, so 2 is the maximum number to be put. The number of quantization/discrete levels are to be input in the `main()`. Default value is kept as 14.
+
 ```python
-Datasets = ["I1","I4","I5"] #ADD YOUR DATASET HERE
-for Dataset in Datasets:
-    print("Stitching Dataset : ", Dataset)
-    Path = "Dataset/"+Dataset
-    images=[]
-    alpha = []
-    for filename in os.listdir(Path):
-        if filename.endswith(".JPG") or filename.endswith(".PNG"):
-            img_dir = Path+'/'+str(filename)
-            images.append(cv2.imread(img_dir))
-
-    for i in range(len(images)):
-        images[i] = imutils.resize(images[i], width=300)
-
-    images = images[:]
-    stitcher = panaroma_stitching()
-    result = stitcher.MultiStitch(images)
-    print("========>Done! Final Image Saved in Outputs Dir!\n\n")
-    if os.path.exists("Outputs/"+Dataset):
-        shutil.rmtree("Outputs/"+Dataset)
-    os.makedirs("Outputs/"+Dataset, )
-    cv2.imwrite("Outputs/"+Dataset+"/"+Dataset+".JPG", result)
+dname = '0705'
+ref_image = 2
 
 ```
-3. The output of the same would be save in the Output directory.
-4. In the terminal run `python main.py`
+3. The output of the same would be saved 
+4. In the terminal run `python rgbd_panorama.py`
 
 ### Flow of the Code:
-1. SIFT to detect features.
-2. Matching features using KNN
-3. Finding the the homography matrix i.e. the mapping from one image plane to another.
-4. warping the images using the inverse of homography matrix to 
+1. Discretize and break the reference image according to input quantization level.
+2. For each level of quantization, use  SIFT to detect features. The detection will between the quantized layer and the whole of source image.
+3. Matching features using KNN
+4. Finding the the homography matrix i.e. the mapping from one image plane to another.
+5. warping each level using the corresponding homography matrices. images using the inverse of homography matrix to 
    ensure no distortion/blank spaces remain in the transformed image.
-5. Stitching and blending all the warped images together
+6. Stitching all the warped images together
 
 #### Implementation of Ransac:
 Refer to the `homographyRansac()` in [Homography.py](https://github.com/Rwik2000/Panorama-Stitching-v2.0/blob/main/homography.py). Access the object `getHomography()` of the class to get the desired homography matrix.
@@ -124,8 +111,10 @@ One would get a result like:
 
 
 ## Files:
-* `main.py` to run and compile the entire code.
+* `rgb_panormama.py` to run and compile the entire code for only rgb warping.
+* `rgbd_panormama.py` to run and compile the entire code for RGB-D warping.
 * `Warp.py` contains `Warp()` clas which helps in image warping
 * `homography.py` helps in finding the homography for two images. It also contains the code for RANSAC.
 * `blend_and_stitch.py` contains `stitcher()` Class which helps in blending and stitching. You can either use `laplcacianBlending()` for blending and stitching or `onlyStitch()` to only stitch without blending.
+* `dicretize.py` contains class `discretize()` and use `exec_multi()` to discretize multiple input images.
 

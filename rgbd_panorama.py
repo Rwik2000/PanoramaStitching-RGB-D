@@ -11,7 +11,7 @@ class panaroma_stitching():
     def __init__(self):
         # Class parameters
         self.LoweRatio = 0.75
-        self.inbuilt_CV = 1 #Use inbuilt opencv functions instead of the hand-made functions
+        self.inbuilt_CV = 0 #Use inbuilt opencv functions instead of the hand-made functions
         self.isFast = 0
         self.blendON = 0 #to use laplacian blend.... keep it ON!
 
@@ -154,7 +154,7 @@ class panaroma_stitching():
         print('stitching done!')
         return img
 
-def main(dataset, ref_number,levels = 10):     
+def main(dataset, ref_number,levels = 14):     
     type = 'depth'
     dimgs = [cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_0.jpg'),
              cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_1.jpg'),
@@ -178,17 +178,11 @@ def main(dataset, ref_number,levels = 10):
     final = pano.stitch2imgs(cimages, disc_imgs,masks,disc.bins)
     cv2.imwrite(dataset+'_'+str(ref_number)+'_'+str(ref_number+1)+'.jpg', final)
 
-dnames = ['0029','0292','0705','1524','2812','3345']
+# dnames = ['0029','0292','0705','1524','2812','3345']
 dname = '0705'
 ref_image = 2
+main(dname,ref_image)
 
-for k in range(3):
-    try:
-        print(k,k+1)
-        main(dname, k,14)
-        print('done!!!!!!! ##################')
-    except:
-        pass
 
 
 

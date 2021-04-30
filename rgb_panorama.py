@@ -52,13 +52,25 @@ class panaroma_stitching():
         # match features between the two images
         H, invH= self.mapKeyPts(kpsA, kpsB,featuresA, featuresB)
         warpClass = Warp()
-        if self.ismid:
-            # Setting the offset only for the main image... homography takes care of the rest of the images
-            warpClass.xOffset = 150
-            warpClass.yOffset = 500
         # Warping the image
-        warpedImg = warpClass.InvWarpPerspective(imageA, invH,H,(640, 1600))
-        return np.uint8(warpedImg)
+        warpClass.xOffset = 150
+        warpClass.yOffset = 200
+        mainimg = np.zeros((640,1000,3))
+        mainimg[warpClass.xOffset:warpClass.xOffset+imageB.shape[0],warpClass.yOffset:warpClass.yOffset+imageB.shape[1]] = imageB
+        warpedImg = warpClass.InvWarpPerspective(imageA, invH,H,(640, 1000))
+        return np.uint8(warpedImg), np.uint8(mainimg)
+    
+    def map2depths(self, images):
+
+        (imageB, imageA) = images
+        (kpsA, featuresA) = self.findSIFTfeatures(imageA)
+        (kpsB, featuresB) = self.findSIFTfeatures(imageB)
+
+        A = self.mapKeyPts(kpsA, kpsB,featuresA, featuresB)
+        if A is not None:
+            return A
+        else:
+            return 0,0,-100
 
 
     def extractMask(self,image):
@@ -92,94 +104,56 @@ class panaroma_stitching():
             # Obtaining the homography matrix
             if not self.inbuilt_CV:
                 homographyFunc = homographyRansac(reprojThresh,1000)
-                H= homographyFunc.getHomography(ptsA, ptsB)
+                H,_= homographyFunc.getHomography(ptsA, ptsB)
             else:
                 H,_ = cv2.findHomography(ptsA, ptsB, cv2.RANSAC, reprojThresh)
+            
             # Obtaining the inverse homography matrix
             invH = np.linalg.inv(H)
             return H, invH
         return None
     
-    def MultiStitch(self, images):
-        
-        if len(images)%2!=0:
-            mid_image_loc = len(images)//2 
-        else:
-            mid_image_loc = len(images)//2 - 1
-        
-        left_images = images[:mid_image_loc]
-        left_images = left_images[::-1]
-
-        right_images = images[mid_image_loc+1:]
-        mid_image = self.map2imgs((images[mid_image_loc], images[mid_image_loc]))
-        self.ismid = 0
-        temp_mid_image = mid_image
-        self.p = 0
-        for i in range(len(left_images)):
-            print("=============> Transformed Image : ", self.p)
-            self.p+=1
-            temp_warp = self.map2imgs((temp_mid_image, left_images[i]))
-            _mask = self.extractMask(temp_warp)
-            self.warp_mask.append(_mask)
-            self.warp_images.append(temp_warp)
-            temp_mid_image = temp_warp
-        self.warp_images = self.warp_images[::-1]
-        self.warp_mask = self.warp_mask[::-1]
-        print("=============> Transformed Image : ", self.p)
-        self.p+=1
-        self.warp_images.append(mid_image)
-        _mask = self.extractMask(mid_image)
-        self.warp_mask.append(_mask)
-        temp_mid_image = mid_image
-        for i in range(len(right_images)):
-            print("=============> Transformed Image : ", self.p)
-            self.p+=1
-            temp_warp = self.map2imgs((temp_mid_image, right_images[i]))
-            _mask = self.extractMask(temp_warp)
-            self.warp_mask.append(_mask)
-            self.warp_images.append(temp_warp)
-            temp_mid_image = temp_warp
-        print("Transformations Applied....")
-        print("Blending and Stitching....")
-
+    def stitch2imgs(self, cimages):
+        wimg,mimg  = self.map2imgs(cimages)
+        warpedimgs = [mimg, wimg]
+        warpedmasks = [self.extractMask(mimg), self.extractMask(wimg)]
         stitchDscp = stitcher()
-        if self.blendON:
-            final = stitchDscp.LaplacianBlend(self.warp_images,self.warp_mask, n=5)
-        else:
-            final = stitchDscp.stitchOnly(self.warp_images,self.warp_mask)
-        cv2.imshow("stitch",final)        
-        cv2.waitKey(0)
-        return final
+        # Laplacian Blending is NOT USED. normal stitching is done.
+        img = stitchDscp.stitchOnly(warpedimgs,warpedmasks)
+        return img
+        
         
 
-# image in the dataset must be in order from left to right
-Datasets = ["I1","I4","I5"]
-for Dataset in Datasets:
-    print("Stitching Dataset : ", Dataset)
-    Path = "Dataset/"+Dataset
-    images=[]
-    alpha = []
-    for filename in os.listdir(Path):
-        if filename.endswith(".JPG") or filename.endswith(".PNG"):
-            img_dir = Path+'/'+str(filename)
-            images.append(cv2.imread(img_dir))
+def main(dataset, ref_number):     
+    type = 'im'
+    cimgs = [cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_0.jpg'),
+             cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_1.jpg'),
+             cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_2.jpg'),
+             cv2.imread('../RGBD dataset/00000'+dataset+'/'+type+'_3.jpg')]
 
-    for i in range(len(images)):
-        images[i] = imutils.resize(images[i], width=300)
+    for i in range(len(cimgs)):
+        cimgs[i] = imutils.resize(cimgs[i], width=300)
 
-    inpImgs = images[:]
+    inpImgs = cimgs[ref_number:ref_number+2]
     panoStitch = panaroma_stitching()
-    panoStitch.dataset = Dataset
-    result = panoStitch.MultiStitch(inpImgs)
+    result = panoStitch.stitch2imgs(inpImgs)
     print("========>Done! Final Image Saved in Outputs Dir!\n\n")
-    if os.path.exists("Outputs/"+Dataset):
-        shutil.rmtree("Outputs/"+Dataset)
-    os.makedirs("Outputs/"+Dataset, )
-    cv2.imwrite("Outputs/"+Dataset+"/"+Dataset+".JPG", result)
+    cv2.imwrite(dataset+'_'+str(ref_number)+'_'+str(ref_number+1)+'.jpg', result)
 
 
-# Note that for dataset 
-# I2: Use Images (1 to 4) or (2 to 5)
-# I3: Use Images (3 to 5)  
-# I6: Use Images in the order  5,1,2,3
+dnames = ['0029','0292','0705','1524','2812','3345']
+dname = '0292'
+ref_image = 2
+main(dname, 0)
+# for name in dnames:
+#     for k in range(3):
+#         print('**********' + name + '**********' )
+#         try:
+#             print(k,k+1)
+#             main(name, k)
+#             print('done!!!!!!! ##################')
+#         except:
+#             pass
+
+
  
