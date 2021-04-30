@@ -15,6 +15,7 @@ class stitcher():
 
         # Ensuring the input images are a multiple of 2^n where n is the number of 
         # layers of the laplacian pyramid.
+        print(images[0].shape)
         assert(images[0].shape[0] % pow(2, n) ==
             0 and images[0].shape[1] % pow(2, n) == 0)
 
@@ -125,3 +126,6 @@ class stitcher():
 
             common_mask = np.sum(common_image.astype(bool), axis=2).astype(bool)
         return common_image
+    
+    def stictDwise(self, images,masks):
+        pass

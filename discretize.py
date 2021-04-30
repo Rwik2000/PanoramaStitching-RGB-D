@@ -46,29 +46,29 @@ class discretize():
         
         a = 0
         for i in range(len(dimgs)):
-            try:
-                dimgs[i] = cv2.cvtColor(dimgs[i], cv2.COLOR_BGR2GRAY)
-
-            except:
-                pass
+            # Converting to 1 channel image
+            dimgs[i] = cv2.cvtColor(dimgs[i], cv2.COLOR_BGR2GRAY)
             a = max(a, np.amax(dimgs[i]))
         step_size = a//self.bins        
         discrete_steps = [i*step_size for i in range(self.bins)]
-        # print(discrete_steps)
         disc_imgs = []
+        masks = []
         for i in range(len(cimgs)):
             depthimgs = []
+            maskimgs = []
                 
             disc_img = dimgs[i]//step_size
             disc_img = disc_img*step_size
             disc_img = cv2.cvtColor(disc_img, cv2.COLOR_GRAY2BGR)
+            # dicretizing and maskibg the coloured image
             for j in range(0,len(discrete_steps)):
                 p = discrete_steps[j]
                 tempMask = cv2.inRange(disc_img, np.array([p]*3), np.array([p]*3)) 
                 masked = cv2.bitwise_and(cimgs[i], cimgs[i], mask=tempMask)
                 depthimgs.append(masked)
-                # cv2.imshow('k', masked)
-                # cv2.waitKey(0)
-            disc_imgs.append(depthimgs)
+                maskimgs.append(tempMask)
 
-        return disc_imgs
+            disc_imgs.append(depthimgs)
+            masks.append(maskimgs)
+
+        return disc_imgs, masks
