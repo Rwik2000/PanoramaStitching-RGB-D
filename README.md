@@ -3,7 +3,7 @@
 
 Code by Rwik Rana, IITGn.
 
-View the project on https://github.com/Rwik2000/Panorama-Stitching-v2.0 for better viewing 
+View the project on https://github.com/Rwik2000/PanoramaStitching-RGB-D for better viewing 
 
 This is a Code to stitch multiple images to create panoramas.This is the tree for the entire repo:
 
